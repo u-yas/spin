@@ -114,6 +114,7 @@ members = [
   "crates/key-value-redis",
   "crates/plugins",
   "crates/redis",
+  "crates/sqlite",
   "crates/templates",
   "crates/testing",
   "crates/trigger",
