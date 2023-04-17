@@ -48,8 +48,9 @@ impl SqliteImpl {
 impl Host for SqliteImpl {
     async fn open(
         &mut self,
-        _name: String,
+        _database: String,
     ) -> anyhow::Result<Result<spin_core::sqlite::Connection, spin_core::sqlite::Error>> {
+        // TODO: handle more than one database
         let conn = match &self.location {
             DatabaseLocation::InMemory => rusqlite::Connection::open_in_memory()?,
             DatabaseLocation::Path(p) => rusqlite::Connection::open(p)?,
