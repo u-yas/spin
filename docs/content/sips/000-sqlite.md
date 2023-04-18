@@ -30,6 +30,7 @@ In order to support sqlite, the following need to be added to Spin:
 - SDK implementations for various programming languages
 - A default local sqlite store (note: Spin already uses sqlite for the KV implementation so this should be trivial)
 - Potentially runtime configuration for configuring how sqlite is provisioned.
+- Potentially a mechansim for handling database migrations
 
 ### Interface (`.wit`)
 
@@ -89,6 +90,19 @@ variant data-type {
 ```
 
 *Note: the pseudo-resource design was inspired by the interface of similar functions in [WASI preview 2](https://github.com/bytecodealliance/preview2-prototyping/blob/d56b8977a2b700432d1f7f84656d542f1d8854b0/wit/wasi.wit#L772-L794).*
+
+#### Database migrations
+
+Database tables typically require some sort of configuration in the form of database migrations to get table schemas into the correct state. While we could require the user to ensure that the database is in the correct state each time the trigger handler function is run, there are a few issues with this:
+* Schema tracking schemes (e.g., a "migrations" table) themselves require some sort of bootstrap step.
+* This goes against the design principle of keeping components handler functions simple and single purpose.
+
+There are several possible ways to address this issue such as:
+* Some mechanism for running spin components before others where the component receives the current schema version and decides whether or not to perform migrations. 
+* The spin component could expose a current schema version as an exported value type so that an exported function would not need to called. If the exported schema version does not match the current schema version, an exported migrate function then gets called.
+* A spin component that gets called just after pre-initialization finishes. Similarly, this component would expose a schema version and have an exported migration function called when the exported schema version does not match the current schema version.
+
+TODO: decide which of these (or another mechanism) to use
 
 #### Implementation requirements
 
