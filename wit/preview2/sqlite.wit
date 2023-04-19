@@ -18,26 +18,26 @@ default interface sqlite {
   open: func(database: string) -> result<connection, error>
 
   // Execute a statement
-  execute: func(conn: connection, statement: statement) -> result<_, error>
+  execute: func(conn: connection, statement: string, parameters: list<value>) -> result<_, error>
 
   // Query data
-  query: func(conn: connection, query: statement) -> result<list<row>, error>
+  query: func(conn: connection, query: string, parameters: list<value>) -> result<list<row>, error>
 
   // Close the specified `connection`.
   close: func(conn: connection)
 
-  // allows parameterized queries
-  type statement = u32
-  prepare-statement: func(query: string, params: list<data-type>) -> result<statement, error>
-  drop-statement: func(s: statement)
-
   // A database row
   record row {
-    values: list<data-type>,
+    values: list<column-value>,
+  }
+
+  // A single column's value
+  record column-value {
+    name: string,
+    value: value
   }
   
-  // Common data types
-  variant data-type {
+  variant value {
     integer(s64),
     real(float64),
     text(string),

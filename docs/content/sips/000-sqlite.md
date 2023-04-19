@@ -59,28 +59,27 @@ variant error {
 // `error::no-such-database` will be raised if the `name` is not recognized.
 open: func(name: string) -> expected<connection, error>
 
-// TODO: Do we want a separate statment type? This is currently what `wasi-sql` does.
-// allows parameterized queries
-type statement = u32
-drop-statement: func(statement: statement)
-prepare-statement: func(query: string, params: list<data-type>) -> expected<statement, error>
-
 // Execute a statement
-execute: func(conn: connection, statement: statement) -> expected<unit, error>
+execute: func(conn: connection, statement: string, parameters: list<value>) -> expected<unit, error>
 
 // Query data
-query: func(conn: connection, q: statement) -> expected<list<row>, error>
+query: func(conn: connection, query: string, parameters: list<value>) -> expected<list<row>, error>
 
 // Close the specified `connection`.
 close: func(conn: connection)
 
 // A database row
 record row {
-  values: list<data-type>,
+  values: list<column-value>,
 }
 
-// Common data types
-variant data-type {
+// A single column's value
+record column-value {
+  name: string,
+  value: value
+}
+
+variant value {
   integer(s64),
   real(float64),
   text(string),
@@ -101,6 +100,10 @@ There are several possible ways to address this issue such as:
 * Some mechanism for running spin components before others where the component receives the current schema version and decides whether or not to perform migrations. 
 * The spin component could expose a current schema version as an exported value type so that an exported function would not need to called. If the exported schema version does not match the current schema version, an exported migrate function then gets called.
 * A spin component that gets called just after pre-initialization finishes. Similarly, this component would expose a schema version and have an exported migration function called when the exported schema version does not match the current schema version.
+* Configuration option in spin.toml manifest for running arbitrary SQL instructions on start up (e.g., `sqlite.migration = "CREATE TABLE users..."`)
+* Command line supplied option for running SQL instructions on start up (e.g., `--sqlite-migration "CREATE TABLE users..."`)
+
+It should be noted that many of these options are not mutually exclusive and we could introduce more than one (perhaps starting with one option that will mostly be replaced later with a more generalized approach).
 
 TODO: decide which of these (or another mechanism) to use
 
@@ -119,7 +122,7 @@ By default, each app will have its own default database which is independent of 
 By default, a given component of an app will _not_ have access to any database. Access must be granted specifically to each component via the following `spin.toml` syntax:
 
 ```toml
-sqlite_databases = ["<database 1>", "<database 2>", ...]
+sqlite_databases = ["<database 1>", "<database 2>"]
 ```
 
 For example, a component could be given access to the default database using `sqlite_databases = ["default"]`.

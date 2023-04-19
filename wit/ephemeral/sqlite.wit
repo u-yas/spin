@@ -16,27 +16,27 @@ variant error {
 // `error::no-such-database` will be raised if the `name` is not recognized.
 open: func(name: string) -> expected<connection, error>
 
-// allows parameterized queries
-type statement = u32
-drop-statement: func(statement: statement)
-prepare-statement: func(query: string, params: list<data-type>) -> expected<statement, error>
-
 // Execute a statement
-execute: func(conn: connection, statement: statement) -> expected<unit, error>
+execute: func(conn: connection, statement: string, parameters: list<value>) -> expected<unit, error>
 
 // Query data
-query: func(conn: connection, q: statement) -> expected<list<row>, error>
+query: func(conn: connection, query: string, parameters: list<value>) -> expected<list<row>, error>
 
 // Close the specified `connection`.
 close: func(conn: connection)
 
 // A database row
 record row {
-  values: list<data-type>,
+  values: list<column-value>,
 }
 
-// Common data types
-variant data-type {
+// A single column's value
+record column-value {
+  name: string,
+  value: value
+}
+
+variant value {
   integer(s64),
   real(float64),
   text(string),
