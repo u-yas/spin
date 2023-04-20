@@ -33,17 +33,23 @@ impl Host for SqliteImpl {
         &mut self,
         _database: String,
     ) -> anyhow::Result<Result<spin_core::sqlite::Connection, spin_core::sqlite::Error>> {
-        // TODO: handle more than one database
-        let conn = match &self.location {
-            DatabaseLocation::InMemory => rusqlite::Connection::open_in_memory()?,
-            DatabaseLocation::Path(p) => rusqlite::Connection::open(p)?,
-        };
+        Ok(async {
+            // TODO: handle more than one database
+            let conn = match &self.location {
+                DatabaseLocation::InMemory => rusqlite::Connection::open_in_memory()
+                    .map_err(|e| sqlite::Error::Io(e.to_string()))?,
+                DatabaseLocation::Path(p) => {
+                    rusqlite::Connection::open(p).map_err(|e| sqlite::Error::Io(e.to_string()))?
+                }
+            };
 
-        // TODO: this is not the best way to do this...
-        let mut rng = rand::thread_rng();
-        let c: sqlite::Connection = rng.gen();
-        self.connections.insert(c, conn);
-        Ok(Ok(c))
+            // TODO: this is not the best way to do this...
+            let mut rng = rand::thread_rng();
+            let c: sqlite::Connection = rng.gen();
+            self.connections.insert(c, conn);
+            Ok(c)
+        }
+        .await)
     }
 
     async fn execute(
@@ -52,13 +58,22 @@ impl Host for SqliteImpl {
         statement: String,
         parameters: Vec<sqlite::Value>,
     ) -> anyhow::Result<Result<(), sqlite::Error>> {
-        let c = self.connections.get(&connection).expect("TODO");
-        let mut s = c.prepare_cached(&statement).expect("TODO");
-        s.execute(rusqlite::params_from_iter(convert_data(
-            parameters.into_iter(),
-        )))
-        .map_err(|e| sqlite::Error::Io(e.to_string()))?;
-        Ok(Ok(()))
+        Ok(async move {
+            let conn = self
+                .connections
+                .get(&connection)
+                .ok_or_else(|| sqlite::Error::InvalidConnection)?;
+            let mut statement = conn
+                .prepare_cached(&statement)
+                .map_err(|e| sqlite::Error::Io(e.to_string()))?;
+            statement
+                .execute(rusqlite::params_from_iter(convert_data(
+                    parameters.into_iter(),
+                )))
+                .map_err(|e| sqlite::Error::Io(e.to_string()))?;
+            Ok(())
+        }
+        .await)
     }
 
     async fn query(
@@ -67,46 +82,63 @@ impl Host for SqliteImpl {
         query: String,
         parameters: Vec<sqlite::Value>,
     ) -> anyhow::Result<Result<Vec<sqlite::Row>, sqlite::Error>> {
-        let c = self.connections.get(&connection).expect("TODO");
-        let mut statement = c
-            .prepare_cached(&query)
-            .map_err(|e| sqlite::Error::Io(e.to_string()))?;
-        let rows = statement
-            .query_map(
-                rusqlite::params_from_iter(convert_data(parameters.into_iter())),
-                |row| {
-                    let mut values = vec![];
-                    for column in 0.. {
-                        let name = match row.as_ref().column_name(column) {
-                            Ok(n) => n.to_owned(),
-                            Err(rusqlite::Error::InvalidColumnIndex(_)) => break,
-                            Err(_) => todo!(),
-                        };
-                        let value = match row.get_ref(column) {
-                            Ok(rusqlite::types::ValueRef::Null) => sqlite::Value::Null,
-                            Ok(rusqlite::types::ValueRef::Integer(i)) => sqlite::Value::Integer(i),
-                            Ok(rusqlite::types::ValueRef::Real(f)) => sqlite::Value::Real(f),
-                            Ok(rusqlite::types::ValueRef::Text(t)) => {
-                                sqlite::Value::Text(String::from_utf8(t.to_vec()).unwrap())
+        Ok(async move {
+            let conn = self.connections.get(&connection).expect("TODO");
+            let mut statement = conn
+                .prepare_cached(&query)
+                .map_err(|e| sqlite::Error::Io(e.to_string()))?;
+            let rows = statement
+                .query_map(
+                    rusqlite::params_from_iter(convert_data(parameters.into_iter())),
+                    |row| {
+                        let mut values = vec![];
+                        for column in 0.. {
+                            let name = row.as_ref().column_name(column);
+                            if let Err(rusqlite::Error::InvalidColumnIndex(_)) = name {
+                                break;
                             }
-                            Ok(rusqlite::types::ValueRef::Blob(b)) => {
-                                sqlite::Value::Blob(b.to_vec())
+                            let name = name?.to_string();
+                            let value = row.get::<usize, ValueWrapper>(column);
+                            if let Err(rusqlite::Error::InvalidColumnIndex(_)) = value {
+                                break;
                             }
-                            Err(rusqlite::Error::InvalidColumnIndex(_)) => break,
-                            _ => todo!(),
-                        };
-                        values.push(sqlite::ColumnValue { name, value });
-                    }
-                    Ok(sqlite::Row { values })
-                },
-            )
-            .map_err(|e| sqlite::Error::Io(e.to_string()))?;
-        Ok(Ok(rows.collect::<Result<_, _>>()?))
+                            let value = value?.0;
+                            values.push(sqlite::ColumnValue { name, value });
+                        }
+                        Ok(sqlite::Row { values })
+                    },
+                )
+                .map_err(|e| sqlite::Error::Io(e.to_string()))?;
+            Ok(rows
+                .map(|r| r.map_err(|e| sqlite::Error::Io(e.to_string())))
+                .collect::<Result<_, sqlite::Error>>()?)
+        }
+        .await)
     }
 
     async fn close(&mut self, connection: spin_core::sqlite::Connection) -> anyhow::Result<()> {
-        let _ = self.connections.remove(&connection);
-        Ok(())
+        Ok(async {
+            let _ = self.connections.remove(&connection);
+        }
+        .await)
+    }
+}
+
+// A wrapper around sqlite::Value so that we can convert from rusqlite ValueRef
+struct ValueWrapper(sqlite::Value);
+
+impl rusqlite::types::FromSql for ValueWrapper {
+    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        let value = match value {
+            rusqlite::types::ValueRef::Null => sqlite::Value::Null,
+            rusqlite::types::ValueRef::Integer(i) => sqlite::Value::Integer(i),
+            rusqlite::types::ValueRef::Real(f) => sqlite::Value::Real(f),
+            rusqlite::types::ValueRef::Text(t) => {
+                sqlite::Value::Text(String::from_utf8(t.to_vec()).unwrap())
+            }
+            rusqlite::types::ValueRef::Blob(b) => sqlite::Value::Blob(b.to_vec()),
+        };
+        Ok(ValueWrapper(value))
     }
 }
 
