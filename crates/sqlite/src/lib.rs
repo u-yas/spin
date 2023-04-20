@@ -1,8 +1,7 @@
 mod host_component;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use rand::Rng;
 use spin_core::{
     async_trait,
     sqlite::{self, Host},
@@ -14,6 +13,8 @@ pub use host_component::SqliteComponent;
 pub struct SqliteImpl {
     location: DatabaseLocation,
     connections: HashMap<sqlite::Connection, rusqlite::Connection>,
+    next_conn_key: u32,
+    allowed_databases: HashSet<String>,
 }
 
 impl SqliteImpl {
@@ -21,19 +22,26 @@ impl SqliteImpl {
         Self {
             location,
             connections: HashMap::default(),
+            next_conn_key: 0,
+            allowed_databases: HashSet::new(),
         }
     }
 
-    pub fn component_init(&mut self) {}
+    pub fn component_init(&mut self, allowed_databases: HashSet<String>) {
+        self.allowed_databases = allowed_databases
+    }
 }
 
 #[async_trait]
 impl Host for SqliteImpl {
     async fn open(
         &mut self,
-        _database: String,
+        database: String,
     ) -> anyhow::Result<Result<spin_core::sqlite::Connection, spin_core::sqlite::Error>> {
         Ok(async {
+            if !self.allowed_databases.contains(&database) {
+                return Err(sqlite::Error::AccessDenied);
+            }
             // TODO: handle more than one database
             let conn = match &self.location {
                 DatabaseLocation::InMemory => rusqlite::Connection::open_in_memory()
@@ -43,11 +51,14 @@ impl Host for SqliteImpl {
                 }
             };
 
-            // TODO: this is not the best way to do this...
-            let mut rng = rand::thread_rng();
-            let c: sqlite::Connection = rng.gen();
-            self.connections.insert(c, conn);
-            Ok(c)
+            loop {
+                let key = self.next_conn_key;
+                self.next_conn_key = self.next_conn_key.wrapping_add(1);
+                if !self.connections.contains_key(&key) {
+                    self.connections.insert(key, conn);
+                    break Ok(key);
+                }
+            }
         }
         .await)
     }
