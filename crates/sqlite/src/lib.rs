@@ -54,7 +54,7 @@ impl Host for SqliteImpl {
     async fn open(
         &mut self,
         database: String,
-    ) -> anyhow::Result<Result<spin_core::sqlite::Connection, spin_core::sqlite::Error>> {
+    ) -> anyhow::Result<Result<sqlite::Connection, sqlite::Error>> {
         Ok(async {
             println!("{database}");
             if !self.allowed_databases.contains(&database) {
@@ -136,7 +136,7 @@ impl Host for SqliteImpl {
         .await)
     }
 
-    async fn close(&mut self, connection: spin_core::sqlite::Connection) -> anyhow::Result<()> {
+    async fn close(&mut self, connection: sqlite::Connection) -> anyhow::Result<()> {
         Ok(async {
             let _ = self.connections.remove(connection);
         }
