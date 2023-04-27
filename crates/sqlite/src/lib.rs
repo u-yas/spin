@@ -56,7 +56,6 @@ impl Host for SqliteImpl {
         database: String,
     ) -> anyhow::Result<Result<sqlite::Connection, sqlite::Error>> {
         Ok(async {
-            println!("{database}");
             if !self.allowed_databases.contains(&database) {
                 return Err(sqlite::Error::AccessDenied);
             }
