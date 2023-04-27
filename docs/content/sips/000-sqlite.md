@@ -67,22 +67,25 @@ open: func(name: string) -> expected<connection, error>
 execute: func(conn: connection, statement: string, parameters: list<value>) -> expected<unit, error>
 
 // Query data
-query: func(conn: connection, query: string, parameters: list<value>) -> expected<list<row>, error>
+query: func(conn: connection, query: string, parameters: list<value>) -> expected<query-result, error>
 
 // Close the specified `connection`.
 close: func(conn: connection)
 
-// A database row
-record row {
-  values: list<column-value>,
+// A result of a query
+record query-result {
+  // The names of the columns retrieved in the query
+  columns: list<string>
+  // the row results each containing the values for all the columns for a given row
+  rows: list<row-result>,
 }
 
-// A single column's value
-record column-value {
-  name: string,
-  value: value
+// A set of values for each of the columns in a query-result
+record row-result {
+  values: list<value>
 }
 
+// The values used in statements/queries and returned in query results
 variant value {
   integer(s64),
   real(float64),
