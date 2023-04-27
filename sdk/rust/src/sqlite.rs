@@ -24,20 +24,20 @@ impl Connection {
     }
 
     /// Execute a statement against the database
-    pub fn execute<'a>(
+    pub fn execute(
         &self,
         statement: &str,
-        parameters: &[sqlite::ValueParam<'a>],
+        parameters: &[sqlite::ValueParam<'_>],
     ) -> Result<(), Error> {
         sqlite::execute(self.0, statement, parameters)?;
         Ok(())
     }
 
     /// Make a query against the database
-    pub fn query<'a>(
+    pub fn query(
         &self,
         query: &str,
-        parameters: &[DataTypeParam<'a>],
+        parameters: &[DataTypeParam<'_>],
     ) -> Result<Vec<sqlite::Row>, Error> {
         sqlite::query(self.0, query, parameters)
     }
@@ -54,8 +54,7 @@ impl Row {
     pub fn geti<'a, T: TryFrom<&'a sqlite::ValueResult>>(&'a self, index: usize) -> Option<T> {
         self.values
             .get(index)
-            .map(|c| (&c.value).try_into().ok())
-            .flatten()
+            .and_then(|c| (&c.value).try_into().ok())
     }
 }
 

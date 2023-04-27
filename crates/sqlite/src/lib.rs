@@ -36,14 +36,14 @@ impl SqliteImpl {
         self.allowed_databases = allowed_databases
     }
 
-    fn get_connection<'a>(
-        &'a self,
+    fn get_connection(
+        &self,
         connection: sqlite::Connection,
-    ) -> Result<MutexGuard<'a, Connection>, sqlite::Error> {
+    ) -> Result<MutexGuard<'_, Connection>, sqlite::Error> {
         Ok(self
             .connections
             .get(connection)
-            .ok_or_else(|| sqlite::Error::InvalidConnection)?
+            .ok_or(sqlite::Error::InvalidConnection)?
             .lock()
             .unwrap())
     }
@@ -127,19 +127,19 @@ impl Host for SqliteImpl {
                     },
                 )
                 .map_err(|e| sqlite::Error::Io(e.to_string()))?;
-            Ok(rows
-                .into_iter()
+            rows.into_iter()
                 .map(|r| r.map_err(|e| sqlite::Error::Io(e.to_string())))
-                .collect::<Result<_, sqlite::Error>>()?)
+                .collect::<Result<_, sqlite::Error>>()
         }
         .await)
     }
 
     async fn close(&mut self, connection: sqlite::Connection) -> anyhow::Result<()> {
-        Ok(async {
+        async {
             let _ = self.connections.remove(connection);
         }
-        .await)
+        .await;
+        Ok(())
     }
 }
 
