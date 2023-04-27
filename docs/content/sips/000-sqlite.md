@@ -109,13 +109,17 @@ There are several possible ways to address this issue such as:
 
 It should be noted that many of these options are not mutually exclusive and we could introduce more than one (perhaps starting with one option that will mostly be replaced later with a more generalized approach).
 
-TODO: decide which of these (or another mechanism) to use
+**TODO**: decide which of these (or another mechanism) to use
 
 #### Implementation requirements
 
-TODO: Open questions:
-* Assumed sqlite version
-* Capacity limits
+**TODO**: Open questions:
+* Assumed sqlite version?
+  * Semantics may change slightly depending on the sqlite version. It's unlikely that we'll be able to match the exact versions between whatever sqlite implementation spin users, Fermyon Cloud, and the user (if the decide to create their own databases manually). Having some guidance on which versions are expected to work might make it easier to guide the user down the right path.
+* Capacity limits? The following are different capacities we might want to control:
+  * The number of databases in total
+  * The number of rows in a database
+  * The size of certain row values (**question**: does sqlite or libsql impose any restrictions and do we just pass those on to the user?)
 
 #### Built-in local database
 
@@ -138,9 +142,12 @@ Sqlite databases may be configured with `[sqlite_database.<database_name>]` sect
 ```toml
 # The `default` config can be overridden
 [sqlite_database.default]
-path = ".spin/sqlite_key_value.db"
+path = ".spin/some-other-database.db"
+
+[sqlite_database.other]
+path = ".spin/yet-another-database.db"
 ```
 
 ## Future work
 
-TODO
+**TODO**
