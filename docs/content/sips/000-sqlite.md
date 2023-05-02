@@ -46,12 +46,14 @@ type connection = u32
 
 // The set of errors which may be raised by functions in this interface
 variant error {
-  // The host does not recognize the database name requested.
+  // A database with the supplied name does not exist
   no-such-database,
   // The requesting component does not have access to the specified database (which may or may not exist).
   access-denied,
   // The provided connection is not valid
   invalid-connection,
+  // The database no longer has reached its capacity
+  database-full
   // Some implementation-specific error has occurred (e.g. I/O)
   io(string)
 }
@@ -96,6 +98,11 @@ variant value {
 ```
 
 *Note: the pseudo-resource design was inspired by the interface of similar functions in [WASI preview 2](https://github.com/bytecodealliance/preview2-prototyping/blob/d56b8977a2b700432d1f7f84656d542f1d8854b0/wit/wasi.wit#L772-L794).*
+
+#### Interface open questions
+
+* `row-result` can be very large. Should we provide some paging mechanism or a different API that allows for reading subsets of the returned data?
+  * Crossing the wit boundary could potentially be expensive if the results are large enough. Giving the user control of how they read that data could be helpful.
 
 #### Database migrations
 
