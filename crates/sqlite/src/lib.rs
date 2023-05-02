@@ -99,37 +99,39 @@ impl Host for SqliteImpl {
         connection: sqlite::Connection,
         query: String,
         parameters: Vec<sqlite::Value>,
-    ) -> anyhow::Result<Result<Vec<sqlite::Row>, sqlite::Error>> {
+    ) -> anyhow::Result<Result<sqlite::QueryResult, sqlite::Error>> {
         Ok(async move {
             let conn = self.get_connection(connection)?;
             let mut statement = conn
                 .prepare_cached(&query)
                 .map_err(|e| sqlite::Error::Io(e.to_string()))?;
+            let columns = statement
+                .column_names()
+                .into_iter()
+                .map(ToOwned::to_owned)
+                .collect();
             let rows = statement
                 .query_map(
                     rusqlite::params_from_iter(convert_data(parameters.into_iter())),
                     |row| {
                         let mut values = vec![];
                         for column in 0.. {
-                            let name = row.as_ref().column_name(column);
-                            if let Err(rusqlite::Error::InvalidColumnIndex(_)) = name {
-                                break;
-                            }
-                            let name = name?.to_string();
                             let value = row.get::<usize, ValueWrapper>(column);
                             if let Err(rusqlite::Error::InvalidColumnIndex(_)) = value {
                                 break;
                             }
                             let value = value?.0;
-                            values.push(sqlite::ColumnValue { name, value });
+                            values.push(value);
                         }
-                        Ok(sqlite::Row { values })
+                        Ok(sqlite::RowResult { values })
                     },
                 )
                 .map_err(|e| sqlite::Error::Io(e.to_string()))?;
-            rows.into_iter()
+            let rows = rows
+                .into_iter()
                 .map(|r| r.map_err(|e| sqlite::Error::Io(e.to_string())))
-                .collect::<Result<_, sqlite::Error>>()
+                .collect::<Result<_, sqlite::Error>>()?;
+            Ok(sqlite::QueryResult { columns, rows })
         }
         .await)
     }

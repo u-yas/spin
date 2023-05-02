@@ -53,7 +53,7 @@ variant error {
   // The provided connection is not valid
   invalid-connection,
   // The database no longer has reached its capacity
-  database-full
+  database-full,
   // Some implementation-specific error has occurred (e.g. I/O)
   io(string)
 }
@@ -77,7 +77,7 @@ close: func(conn: connection)
 // A result of a query
 record query-result {
   // The names of the columns retrieved in the query
-  columns: list<string>
+  columns: list<string>,
   // the row results each containing the values for all the columns for a given row
   rows: list<row-result>,
 }
@@ -103,6 +103,7 @@ variant value {
 
 * `row-result` can be very large. Should we provide some paging mechanism or a different API that allows for reading subsets of the returned data?
   * Crossing the wit boundary could potentially be expensive if the results are large enough. Giving the user control of how they read that data could be helpful.
+* Is there really a need for query *and* execute functions since at the end of the day, they are basically equivalent?
 
 #### Database migrations
 
